@@ -25,7 +25,7 @@ image::file1.png[]
 
 .Добавление директорий
 image::file2.png[]
-Настроим объем памяти, занимаемый _Stack_ и _Heap_. Для этого в меню _Options-Linker_ снимем галочку с пункта _Override default_, нажмём _Edit..._ и отведем по 0x1000 бит для _Stack_ и _Heap_ (рисунок 3).
+Настроим объем памяти, занимаемый _Stack_ и _Heap_. Для этого в меню _Options-Linker_ поставим галочку в пункт _Override default_, нажмём _Edit..._ и отведем по 0x1000 бит для _Stack_ и _Heap_ (рисунок 3).
 
 .Настройка STACK/HEAP
 image::file3.png[]
