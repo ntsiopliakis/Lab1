@@ -1,0 +1,105 @@
+:imagesdir: Images
+:figure-caption: Рисунок
+
+== Лабораторная №1
+=== Задание 1
+Создадим новый С++ проект  _Kproject3_ под микроконтроллер *STM32F411RE* и программатор *ST-Link/V2* в IDE *IAR Embedded Workbench*, загрузим в него файлы из проекта преподавателя ( доступен для скачивания по ссылке https://github.com/lamer0k/stm32Labs/tree/master/Lab1).
+
+Необходимо привести структуру рабочей области проекта _Kproject3_ в соответствие со структурой проекта преподавателя.
+Для этого создаем в рабочей области следующие группы (_Add - Add Group..._):
+
+* _AbstractHardware/Registers/STM32F411_;
+* _AbstractHardware/Registers/CortexM4_;
+* _AbstractHardware/Registers/STM32F411/FieldValues_;
+* _AbstractHardware/Registers/CortexM4/FieldValues_;
+* _Common_;
+
+и добавляем в проект скаченные файлы (_Add - Add Files..._): _starupF414RE.cpp_ и другие.
+
+В результате проект принимает структуру, привиденную на рисунке 1.
+
+.Структура проекта
+image::file1.png[]
+
+Укажем директории размещения файлов проекта в настройках препроцессора (рисунок 2).
+
+.Добавление директорий
+image::file2.png[]
+Настроим объем памяти, занимаемый _Stack_ и _Heap_. Для этого в меню _Options-Linker_ снимем галочку с пункта _Override default_, нажмём _Edit..._ и отведем по 0x1000 бит для _Stack_ и _Heap_ (рисунок 3).
+
+.Настройка STACK/HEAP
+image::file3.png[]
+
+В файл _main.cpp_ запишем следующий код:
+----
+#include "gpiocregisters.hpp" //for GPIOC
+#include "rccregisters.hpp"   //for RCC
+
+int main()
+{
+  RCC::AHB1ENR::GPIOCEN::Enable::Set() ;
+  GPIOC::MODER::MODER5::Output::Set() ;
+  GPIOC::ODR::ODR5::Enable::Set() ;
+  GPIOC::ODR::ODR5::Disable::Set() ;
+  return 0 ;
+}
+----
+Видим, что в коде для обращения к регистрам используется  некоторая незнакомая библиотека. По названиям упоминаемых в коде регистров и https://www.st.com/resource/en/reference_manual/dm00119316-stm32f411xce-advanced-armbased-32bit-mcus-stmicroelectronics.pdf[_Reference Manual for STM32F411RE_], а так же по схеме платы *XNucleo-F411RE* (рисунок 4) можно судить о назначении строк кода:
+
+. включается тактирование порта GPIOС;
+. GPIOC5 переводится в режим порта вывода;
+. на выходе GPIOC5 устанавливается 1 (и, как следует из рисунка 4, загорается светодиод _User_LED4_).
+. на выходе GPIOC5 устанавливается 0 (и светодиод _User_LED4_ гаснет).
+
+.Схема платы XNucleo-F411RE
+image::file4.png[]
+=== Задание 2
+Соберем проект (_Project-Rebuild All_). Сборка провалилась (рисунок 5).
+
+.Ошибка при сборке проекта
+image::file5.png[]
+Перейдем к определению _GPIOC::ODR::ODR5_, чтобы разобраться в произошедшей ошибке. Узнаем, что _GPIOC::ODR::ODR5_ является псевдонимом для структуры _GPIOC_ODR_ODR5_Values_, имеющей следующее определение:
+----
+template <typename Reg, size_t offset, size_t size, typename AccessMode, typename BaseType>
+struct GPIOC_ODR_ODR5_Values: public RegisterField<Reg, offset, size, AccessMode>
+{
+  using Low = FieldValue<GPIOC_ODR_ODR5_Values, BaseType, 0U> ;
+  using High = FieldValue<GPIOC_ODR_ODR5_Values, BaseType, 1U> ;
+} ;
+----
+Очевидно, что для _Enable_ и _Disable_ нет определения,  их упоминания в _main.cpp_ следует заменить  на _High_ и _Low_.
+Исправленный код в _main.cpp_:
+----
+#include "gpiocregisters.hpp" //for GPIOC
+#include "rccregisters.hpp"   //for RCC
+
+int main()
+{
+  RCC::AHB1ENR::GPIOCEN::Enable::Set() ;
+  GPIOC::MODER::MODER5::Output::Set() ;
+  GPIOC::ODR::ODR5::High::Set() ;
+  GPIOC::ODR::ODR5::Low::Set() ;
+  return 0 ;
+}
+----
+Соберем проект (сборка проходит успешно), загрузим програму в микроконтроллер. Так как между ожидаемыми включением и выключением светодиода не задана задержка, его включение можно зафиксировать только в режиме построчной отладки.
+
+Действительно, при работе программы загорается светодиод _User_LED4_ (рисунок 6).
+
+.Включение светодиода _User_LED4_
+image::file6.png[100,300]
+=== Задание 3
+Задание предусматривает работу с анализатором стека. Для того, чтобы включить опцию анализа глубины стека, необходимо перейти в _Options - Linker - Advanced_ и поставить галочку _Enable stack usage analysis_ (рисунок 7). Затем пересоберем проект, и в файле _.map_ появится запись с результатами анализа стека (рисунок 7).
+
+.Выдержка из файла _.map_
+image::file7.png[]
+
+Таким образом, при максимальной цепочке вложенности размер стека  может быть равным 16 байт.
+
+Далее задание требует установить нулевым размер _Heap_. Сконфигурируем линкёр соответствующим образом (рисунок 8).
+
+.Установка нулевого размера _Heap_
+image::file8.png[600,600]
+
+Сборка проходит успешно - память в программе не аллоцируется динамически - соответственно, нет и переменных, хранящихся на _Heap_.
+В отличие от _Heap_, _Stack_ используется в любом случае: здесь хранятся локальные переменные и адреса возвратов функций, и следовательно, нельзя выделять под _Stack_ нулевой объем памяти.
